@@ -191,23 +191,33 @@ SAX2 and Stax2 APIs
                to simplify releases. I hope.
           -->
 	<plugin>
-            <groupId>org.sonatype.plugins</groupId>
-            <artifactId>nexus-staging-maven-plugin</artifactId>
-            <version>1.6.6</version>
-            <extensions>true</extensions>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
             <configuration>
-              <serverId>sonatype-nexus-staging</serverId>
-              <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+              <source>1.6</source>
+              <target>1.6</target>
+              
+              
               <!-- 12-Oct-2019, tatu: Found this from output of mvn:relase -->
-              <stagingProfileId>b34f19b9cc6224</stagingProfileId>
+              
             </configuration>
         </plugin>
 
             <plugin>
-                <artifactId>maven-compiler-plugin</artifactId>
+                <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <source>1.6</source>
-                    <target>1.6</target>
+<excludes>
+            <exclude>failing/*.java</exclude>
+            <exclude>**/Abstract*.java</exclude>
+            <exclude>**/Base*.java</exclude>
+            <exclude>**/*$*.java</exclude>
+          </excludes>
+<includes>
+            <include>**/*Test.java</include>
+            <include>**/Test*.java</include>
+          </includes>
+                    
+                    
 <!--
                     <excludes>
                         <exclude>test/**</exclude>
@@ -216,105 +226,103 @@ SAX2 and Stax2 APIs
                 </configuration>
             </plugin>
             <plugin>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <excludes>
-                        <exclude>failing/*.java</exclude>
-                        <exclude>**/Abstract*.java</exclude>
-                        <exclude>**/Base*.java</exclude>
-                        <exclude>**/*$*.java</exclude>
-                    </excludes>
-                    <includes>
-                        <include>**/*Test.java</include>
-                        <include>**/Test*.java</include>
-                    </includes>
-                </configuration>
+                <artifactId>maven-bundle-plugin</artifactId>
+                <groupId>org.apache.felix</groupId>
+                <extensions>true</extensions>
             </plugin>
             <plugin>
-                <groupId>org.apache.felix</groupId>
-                <artifactId>maven-bundle-plugin</artifactId>
-                <extensions>true</extensions>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <minimizeJar>false</minimizeJar>
+              <artifactSet>
+                <includes>
+                  <include>net.java.dev.msv:msv-core</include>
+                  <include>net.java.dev.msv:xsdlib</include>
+                  <include>relaxngDatatype:relaxngDatatype</include>
+                  <include>com.sun.xml.bind.jaxb:isorelax</include>
+                </includes>
+              </artifactSet>
+              <filters>
+                <filter>
+                  <artifact>net.java.dev.msv:msv-core</artifact>
+                  <includes>
+                    <include>com/sun/msv/**</include>
+                  </includes>
+                  <excludes>
+                    <exclude>com/sun/msv/driver/textui/DebugController*</exclude>
+                    <exclude>com/sun/msv/driver/textui/Driver*</exclude>
+                    <exclude>com/sun/msv/driver/textui/Messages*</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+              <relocations>
+                <relocation>
+                  <pattern>com.sun.msv.xsd</pattern>
+                  <shadedPattern>com.ctc.wstx.shaded.msv.xsd</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>com.sun.xml.util</pattern>
+                  <shadedPattern>com.ctc.wstx.shaded.msv.xsd_util</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.relaxng.datatype</pattern>
+                  <shadedPattern>com.ctc.wstx.shaded.msv.relaxng_datatype</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.iso_relax</pattern>
+                  <shadedPattern>com.ctc.wstx.shaded.msv.org_isorelax</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>jp.gr.xml.relax</pattern>
+                  <shadedPattern>com.ctc.wstx.shaded.msv.org_jp_gr_xml</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>com.sun.msv</pattern>
+                  <shadedPattern>com.ctc.wstx.shaded.msv_core</shadedPattern>
+                </relocation>
+              </relocations>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
             </plugin>
 
             <plugin>
             <!--  We will shade MSV, partly to simplify deployment, but also to work
                   around Java 9+ module-info issues (MSV not retrofitted)
               -->
-	         <groupId>org.apache.maven.plugins</groupId>
-	         <artifactId>maven-shade-plugin</artifactId>
+	         <groupId>org.moditect</groupId>
+	         <artifactId>moditect-maven-plugin</artifactId>
 	         <executions>
 	           <execution>
 	             <phase>package</phase>
+	             <id>add-module-infos</id>
 	             <goals>
-	               <goal>shade</goal>
+	               <goal>add-module-info</goal>
 	             </goals>
 	             <configuration>
+                    <overwriteExistingFiles>true</overwriteExistingFiles>
+                    <module>
+                <moduleInfoFile>src/moditect/module-info.java</moduleInfoFile>
+              </module>
                    <!-- Too many dynamically resolved dependencies (via class names)
                         so can not do this, alas:
                     -->
-                   <minimizeJar>false</minimizeJar>
-                   <artifactSet>
-                     <includes>
-                       <!-- the bundle plugin already did the pulling-in, all we need is the renaming! -->
-                       <include>net.java.dev.msv:msv-core</include>
-                       <include>net.java.dev.msv:xsdlib</include>
-                       <include>relaxngDatatype:relaxngDatatype</include>
-                       <include>com.sun.xml.bind.jaxb:isorelax</include>
-                     </includes>
-                   </artifactSet>
-                   <filters>
-                     <filter>
-                       <artifact>net.java.dev.msv:msv-core</artifact>
-                       <includes>
-                         <include>com/sun/msv/**</include>
-                       </includes>
-                       <!-- 27-Feb-2020, tatu: Need to be careful; initial
-                          [woodstox-core#96] fix excluded `com.sun.msv.driver.textui.Debug`
-                          which is (alas) referenced by other part(s) of codebase.
-                          What we do want to get rid of is `Driver`, but couple of other
-                          classes here refer to it so try to only include `Debug` and nothing else
-                        -->
-                       <excludes>
-                         <exclude>com/sun/msv/driver/textui/DebugController*</exclude>
-                         <exclude>com/sun/msv/driver/textui/Driver*</exclude>
-                         <exclude>com/sun/msv/driver/textui/Messages*</exclude>
-                       </excludes>
-                     </filter>
-                   </filters>
-                   <relocations>
-                     <!-- First, xsdlib (must order first) -->
-                      <relocation>
-                        <pattern>com.sun.msv.xsd</pattern>
-                        <shadedPattern>com.ctc.wstx.shaded.msv.xsd</shadedPattern>
-                      </relocation>
-                      <relocation> <!--  and one stupid little class xsdlib has for reasons -->
-                        <pattern>com.sun.xml.util</pattern>
-                        <shadedPattern>com.ctc.wstx.shaded.msv.xsd_util</shadedPattern>
-                      </relocation>
-                      <relocation>
-                        <pattern>org.relaxng.datatype</pattern>
-                        <shadedPattern>com.ctc.wstx.shaded.msv.relaxng_datatype</shadedPattern>
-                      </relocation>
-                      <relocation>
-                        <pattern>org.iso_relax</pattern>
-                        <shadedPattern>com.ctc.wstx.shaded.msv.org_isorelax</shadedPattern>
-                      </relocation>
-                      <relocation>
-                        <pattern>jp.gr.xml.relax</pattern>
-                        <shadedPattern>com.ctc.wstx.shaded.msv.org_jp_gr_xml</shadedPattern>
-                      </relocation>
-
-                      <!-- then msv-core -->
-                       <!-- GedMarc 20190717 - package names can't have dashes -->
-	                 <relocation>
-	                   <pattern>com.sun.msv</pattern>
-	                   <shadedPattern>com.ctc.wstx.shaded.msv_core</shadedPattern>
-	                 </relocation>
-	               </relocations>
+                   
+                   
+                   
+                   
 	               <!--  Need to ensure class names for services get translated as well... -->
-                    <transformers>
-                      <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
-                    </transformers>	               
+                    	               
 	             </configuration>
 	           </execution>
 	         </executions>
@@ -325,25 +333,7 @@ SAX2 and Stax2 APIs
 		  will have to use `moduleInfoFile` which is crappy but anything else requires
 		  JDK 9+.
               -->
-         <plugin>
-              <groupId>org.moditect</groupId>
-              <artifactId>moditect-maven-plugin</artifactId>
-              <executions>
-                <execution>
-                  <id>add-module-infos</id>
-                  <phase>package</phase>
-                  <goals>
-                    <goal>add-module-info</goal>
-                  </goals>
-                  <configuration>
-                    <overwriteExistingFiles>true</overwriteExistingFiles>
-                    <module>
-                      <moduleInfoFile>src/moditect/module-info.java</moduleInfoFile>
-                    </module>
-                  </configuration>
-                </execution>
-              </executions>
-         </plugin>
+         
        </plugins>
     </build>
 
